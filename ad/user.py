@@ -27,7 +27,7 @@ USER_ATTRIBUTES=[
     'displayName',
     'mail',
     'title',
-    'samaccountname',
+    'sAMAccountName',
     'lockouttime',
     'lockoutduration',
     'description',
@@ -84,13 +84,18 @@ def get_groups(conn, user):
     group_dns = response[0]['attributes']['memberOf']
 
     # get primary group which is not included in the memberOf attribute
-    pgid = int(response[0]['attributes']['primaryGroupID'][0])
+    pgid = response[0]['attributes']['primaryGroupID']
+    if pgid:
+        pgid = int(pgid[0])
+    else:
+        pgid = None
     groups = list(ad.group.get_all(conn))
     for g in groups:
         # Builtin group SIDs are returned as str's, not bytes
         if type(g['attributes']['objectSid'][0]) == str:
             g['attributes']['objectSid'][0] = g['attributes']['objectSid'][0].encode()
     gids = [gid_from_sid(g['attributes']['objectSid'][0]) for g in groups]
-    group_dns.append(groups[gids.index(pgid)]['dn'])
+    if pgid is not None:
+        group_dns.append(groups[gids.index(pgid)]['dn'])
     group_dns = list(map(str.lower, group_dns))
     return [g for g in groups if g['dn'].lower() in group_dns]

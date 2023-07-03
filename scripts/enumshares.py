@@ -28,6 +28,7 @@ def crawl_share(conn, share):
         try:
             for f in conn.listPath(share, path):
                 if f.isDirectory:
+#                    logger.debug(f"{f.filename}\t{args.exclude}\t{f.filename in args.exclude}")
                     if f.filename not in args.exclude:
                         dirs.append(path+'\\'+f.filename)
                 else:
@@ -42,7 +43,7 @@ def enum_thread(args, host):
     conn.connect(host, port=args.smb_port)
     shares = [s.name for s in conn.listShares() if s.type == smb.base.SharedDevice.DISK_TREE]
     for s in shares:
-        if s.lower() in args.exclude:
+        if s in args.exclude:
             logger.debug('Skipping excluded dir: '+s)
             continue
         logger.debug('Crawling share '+s)
@@ -88,12 +89,12 @@ if __name__ == '__main__':
     parser.add_argument('--smb-port', dest='smb_port', type=int, default=445, help='SMB port. default 445')
     #parser.add_argument('--proxy', help='socks5 proxy: eg 127.0.0.1:8888')
     parser.add_argument('--debug', action='store_true', help='enable debug output')
-    parser.add_argument('-x', '--exclude', action='append', help='dirs to exclude from crawling')
+    parser.add_argument('-x', '--exclude', action='append', help='dirs to exclude from crawling', default=[])
     args = parser.parse_args()
 
     args.exclude.append('.')
     args.exclude.append('..')
-    args.exclude = set(map(str.lower, args.exclude))
+    args.exclude = set(args.exclude)
 
     if args.debug:
         h = logging.StreamHandler()
@@ -102,5 +103,11 @@ if __name__ == '__main__':
             l = logging.getLogger(n)
             l.setLevel(logging.DEBUG)
             l.addHandler(h)
+        logger.debug(f"Domain: {args.domain}")
+        logger.debug(f"User: {args.username}")
+        logger.debug(f"Host(s): {args.hosts}")
+        logger.debug(f"Port: {args.smb_port}")
+        logger.debug(f"Worker count: {args.workers}")
+        logger.debug(f"Exclusions: {args.exclude}")
 
     enum_shares(args)
