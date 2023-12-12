@@ -40,7 +40,7 @@ def get_addrs_by_host(host, name_server=None, timeout=TIMEOUT):
 
 def get_addr_by_host(host, name_server=None, timeout=TIMEOUT):
     addrs = get_addrs_by_host(host, name_server, timeout)
-    return addrs[0] if len(addrs) else None
+    return addrs[0] if len(addrs) else host
 
 def get_fqdn_by_addr(addr, name_server=None, timeout=TIMEOUT):
     resolver = get_resolver(name_server, timeout)

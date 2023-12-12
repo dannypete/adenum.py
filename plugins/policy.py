@@ -23,6 +23,10 @@ def handler(args, conn):
     # sort policies by precedence. precedence is used to determine which policy applies to a user
     # when multiple policies are applied to him/her
     pols = sorted(ad.password.get_pass_policy(conn, args.search_base), key=lambda p:int(p['attributes']['msDS-PasswordSettingsPrecedence'][0]))
+    if len(pols) == 0:
+        logger.warn("No other password policies other than default could be fetched. Maybe because you don't have enough privileges in the domain, or maybe there's only one policy?")
+    else:
+        logger.info(f"Fetched an additional {len(pols)} password policies.")
     for a in [p['attributes'] for p in pols]:
         print('=', a['name'][0].title(), '=')
         print('ComplexityEnabled              ', a['msDS-PasswordComplexityEnabled'][0])

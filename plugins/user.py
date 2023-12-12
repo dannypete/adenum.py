@@ -14,15 +14,17 @@ def print_user(user, conn, args):
     if not user.get('attributes'):
         return
     a = user['attributes']
+    logger.debug(a)
     # https://msdn.microsoft.com/en-us/library/ms680832.aspx
     try:
         print('UserName                 ', a.get('samAccountName', None)[0] or \
               a.get('userPrincipalName')[0].split('@')[0])
     except:
         print('UserName                 ', dn_to_cn(user['dn']))
-    print('FullName                 ', get_attr(a, 'givenName', ''), get_attr(a, 'middleName', ''))
+    print('FullName                 ', get_attr(user, 'givenName', ''), get_attr(user, 'middleName', ''))
     print('DistinguishedName        ', a['distinguishedName'][0])
-    print('UserPrincipalName        ', get_attr(a, 'userPrincipalName', ''))
+    print('sAMAccountName           ', get_attr(user, 'sAMAccountName', ''))
+    print('UserPrincipalName        ', get_attr(user, 'userPrincipalName', ''))
     print('Comment                  ', ','.join(a['description']))
     print('UserComment              ', ','.join(a['info']))
     print('DisplayName              ', ' '.join(a['displayName']))
@@ -68,8 +70,11 @@ def print_user(user, conn, args):
         try:
             groups = ad.user.get_groups(conn, user['dn'])
             primary_group = [g['dn'] for g in groups if struct.unpack(
-                '<H', g['attributes']['objectSid'][0][-4:-2])[0] == int(a['primaryGroupID'][0])][0]
-            print('PrimaryGroup              "{}"'.format(primary_group if args.dn else dn_to_cn(primary_group)))
+                '<H', g['attributes']['objectSid'][0][-4:-2])[0] == int(a['primaryGroupID'][0])]
+            if primary_group:
+                print('PrimaryGroup              "{}"'.format(primary_group[0] if args.dn else dn_to_cn(primary_group[0])))
+            else:
+                print('PrimaryGroup              NONE')
             # group scopes:
             # https://technet.microsoft.com/en-us/library/cc755692.aspx
             # http://www.harmj0y.net/blog/activedirectory/a-pentesters-guide-to-group-scoping/
