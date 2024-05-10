@@ -30,15 +30,15 @@ def handler(args, conn):
     for s in servers:
         for hn in s['hostname']:
 
-            logger.debug('Connecting to DC {}'.format(hn))
+            logger.debug('Connecting to DC {}'.format(s))
             try:
                 raddr = get_addr_by_host(hn, name_server=args.name_server, ad_server=args.server)
                 r = ad.dc.get_info(args, ad.connection.get(args, raddr))
             except:
                 logger.error('DC connection failed: {}'.format(hn))
                 continue
-            print('address                         ', hn)
-            print('dnsHostName                     ', r['dnsHostName'])
+            print('address                         ', raddr)
+            print('dnsHostName                     ', hn)
             print('supportedLDAPVersions           ', ', '.join(map(str, r['supportedLDAPVersion'])))
             print('searchBase                      ', r['search_base'])
             print('domainControllerFunctionality   ', FUNC_LEVELS[r['domainControllerFunctionality']])
