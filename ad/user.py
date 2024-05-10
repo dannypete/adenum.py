@@ -2,6 +2,7 @@ import logging
 
 import ad.group
 from .convert import gid_from_sid, escape
+from net.adschema import ADSchemaObjectCategory
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +56,22 @@ USER_ATTRIBUTES=[
 def get_all(conn, active_only=False):
     ''' get all domain users '''
     attrs = list(USER_ATTRIBUTES)
-    filt = '(objectCategory=user)'
+    filt = f'(objectCategory={ADSchemaObjectCategory.USER})'
     if active_only:
-        filt = '(&(objectCategory=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))'
+        filt = f'(&(objectCategory={ADSchemaObjectCategory.USER})(!(userAccountControl:1.2.840.113556.1.4.803:=2)))'
     return conn.searchg(conn.default_search_base, filt, attributes=attrs)
 
 def get_dn(conn, user):
     response = conn.searchg(
         conn.default_search_base,
-        '(&(objectCategory=user)(|(userPrincipalName={}@*)(cn={})(samAccountName={})))'.format(escape(user), escape(user), escape(user)))
+        f'(&(objectCategory={ADSchemaObjectCategory.USER})(|(userPrincipalName={escape(user)}@*)(cn={escape(user)})(samAccountName={escape(user)})))')
     return list(response)[0]['dn']
 
 def get_info(conn, user):
     user_dn = get_dn(conn, user)
     return conn.searchg(
         conn.default_search_base,
-        '(&(objectCategory=user)(distinguishedName={}))'.format(escape(user_dn)),
+        f'(&(objectCategory={ADSchemaObjectCategory.USER})(distinguishedName={escape(user_dn)}))',
         attributes=list(USER_ATTRIBUTES)
     )
 
@@ -79,7 +80,7 @@ def get_groups(conn, user):
     user should be a dn. '''
     response = list(conn.searchg(
         conn.default_search_base,
-        '(&(objectCategory=User)(distinguishedName='+escape(user)+'))',
+        f'(&(objectCategory={ADSchemaObjectCategory.USER})(distinguishedName={escape(user)}))',
         attributes=['memberOf', 'primaryGroupID']))
     group_dns = response[0]['attributes']['memberOf']
 
@@ -94,7 +95,9 @@ def get_groups(conn, user):
         # Builtin group SIDs are returned as str's, not bytes
         if type(g['attributes']['objectSid'][0]) == str:
             g['attributes']['objectSid'][0] = g['attributes']['objectSid'][0].encode()
+    logger.debug(groups)
     gids = [gid_from_sid(g['attributes']['objectSid'][0]) for g in groups]
+    logger.debug(gids)
     if pgid is not None:
         group_dns.append(groups[gids.index(pgid)]['dn'])
     group_dns = list(map(str.lower, group_dns))

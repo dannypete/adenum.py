@@ -8,7 +8,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='spn'
+PLUGIN_NAME = 'spn'
+PLUGIN_INFO = 'list servicePrincipalNames for objects'
 g_parser = None
 
 def handler(args, conn):
@@ -27,6 +28,6 @@ def get_parser():
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='list servicePrincipalNames for objects')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
     return g_parser

@@ -1,5 +1,7 @@
 import logging
 
+from net.adschema import ADSchemaObjectCategory
+
 logger = logging.getLogger(__name__)
 
 # ms-Mcs-AdmPwd (LAPS password). see also post/windows/gather/credentials/enum_laps
@@ -25,9 +27,9 @@ COMPUTER_ATTRIBUTES=[
 def get(conn, hostname, attributes=[]):
     attributes = list(set(attributes + COMPUTER_ATTRIBUTES))
     if '.' in hostname:
-        response = list(conn.searchg(conn.default_search_base, '(&(objectCategory=computer)(dNSHostname={}))'.format(hostname), attributes=attributes))
+        response = list(conn.searchg(conn.default_search_base, f'(&(objectCategory={ADSchemaObjectCategory.COMPUTER})(dNSHostname={hostname}))', attributes=attributes))
     else:
-        response = list(conn.searchg(conn.default_search_base, '(&(objectCategory=computer)(cn={}))'.format(hostname), attributes=attributes))
+        response = list(conn.searchg(conn.default_search_base, f'(&(objectCategory={ADSchemaObjectCategory.COMPUTER})(cn={hostname}))', attributes=attributes))
     if len(response) > 1:
         logger.warning('Found multiple computers when expecting 1. Using first result only.')
     return list(response)[0]
@@ -35,5 +37,5 @@ def get(conn, hostname, attributes=[]):
 
 def get_all(conn, attributes=[]):
     attributes = list(set(attributes + COMPUTER_ATTRIBUTES))
-    response = conn.searchg(conn.default_search_base, '(objectCategory=computer)', attributes=attributes)
+    response = conn.searchg(conn.default_search_base, f'(&(objectCategory={ADSchemaObjectCategory.COMPUTER})', attributes=attributes)
     return [c for c in response if c.get('dn', None)]

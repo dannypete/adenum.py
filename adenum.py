@@ -81,6 +81,8 @@ if __name__ == '__main__':
             l.setLevel(logging.INFO)
             l.addHandler(h)
 
+    logger.debug(args)
+
     for p in plugin_list:
         logger.debug('Loaded Plugin: '+p.PLUGIN_NAME)
 
@@ -96,7 +98,7 @@ if __name__ == '__main__':
 
     if args.server and not net.util.is_addr(args.server):
         # resolve DC hostname
-        args.server = net.name.get_addr_by_host(args.server, args.name_server, args.timeout) or net.name.get_host_by_name(args.server)
+        args.server = net.name.get_addr_by_host(args.server, args.name_server, args.server, args.timeout) or net.name.get_host_by_name(args.server)
         if not args.server:
             print('Error: Failed to resolve DC hostname')
             sys.exit()
@@ -127,7 +129,7 @@ if __name__ == '__main__':
             info = ad.dc.get_info(args)
             args.domain = info['defaultNamingContext'][3:].lower().replace(',dc=', '.')
             if not args.domain:
-                fqdn = net.name.get_fqdn_by_addr(args.server, args.name_server, args.timeout)
+                fqdn = net.name.get_fqdn_by_addr(args.server, args.name_server, args.server, args.timeout)
                 if not fqdn and args.server != args.name_server:
                     # try dns query against the domain controller
                     fqdn = net.name.get_fqdn_by_addr(args.server, args.server, args.timeout)

@@ -5,9 +5,8 @@ from ad.convert import escape, get_attr
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='query'
-g_parser = None
-
+PLUGIN_NAME = 'query'
+PLUGIN_INFO = 'perform custom ldap query'
 EXAMPLES='''
     # look for users by last name
     query -f '(&(objectCategory=user)(displayName=*LASTNAME*))' -s subtree userPrincipalName samAccountName description
@@ -15,6 +14,7 @@ EXAMPLES='''
     # look for exchange servers
     query -f '(&(objectCategory=computer)(dNSHostName=*EXCH*))' -s subtree description dNSHostName operatingSystemVersion
 '''
+g_parser = None
 
 def get_parser():
     return g_parser
@@ -71,7 +71,7 @@ def handler(args, conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='perform custom ldap query')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
         g_parser.add_argument('-b', '--base', help='search base. default is DC')
         g_parser.add_argument('-a', '--append', action='store_true', default=False, help='append base to DC')

@@ -5,6 +5,8 @@ import tempfile
 import collections
 import configparser
 
+from net.adschema import ADSchemaObjectCategory
+
 logger = logging.getLogger(__name__)
 
 # password attributes as stored in
@@ -87,7 +89,7 @@ def get_default_pass_policy(args, conn):
         except:
             pass
         # ldap stores ints differently than the .inf in sysvol
-        if 'minPwdAge' in ldap_props:
+        if 'minPwdAge' in ldap_props: 
             ldap_props['minPwdAge'][0] = str(int(ldap_props['minPwdAge'][0])//1440) # to days
         if 'maxPwdAge' in ldap_props:
             ldap_props['maxPwdAge'][0] = str(int(ldap_props['maxPwdAge'][0])//1440) # to days
@@ -151,7 +153,7 @@ def get_pass_policy(conn, search_base):
         'msDS-PasswordSettingsPrecedence', # used to assign precedence when a user is member of multiple policies
     ]
     # grab all objects directly under the search base
-    raw_response = conn.searchg(base, '(objectCategory=*)', attributes=attrs, search_scope=ldap3.LEVEL)
+    raw_response = conn.searchg(base, f'(objectCategory={ADSchemaObjectCategory.WILDCARD})', attributes=attrs, search_scope=ldap3.LEVEL)
     response = []
     for r in raw_response:
         if not r['dn'].lower().startswith('cn=password settings container,'):

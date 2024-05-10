@@ -37,12 +37,8 @@ https://support.microsoft.com/en-us/help/2962486/ms14-025-vulnerability-in-group
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='gpp'
-PLUGIN_INFO='''
-Check the SYSVOL share on the domain controller for Group Policy Preferences (GPP) configurations
-that include credentials. Standard users should be able to query these configurations and decrypt
-the passwords (cPassword XML attribute) with a publically known AES key.
-'''
+PLUGIN_NAME = 'gpp'
+PLUGIN_INFO = 'Check Group Policy Preferences for creds'
 
 g_parser = None
 
@@ -135,6 +131,6 @@ def handler(args, ldap_conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='Check Group Policy Preferences for creds')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
     return g_parser

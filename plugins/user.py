@@ -6,7 +6,8 @@ from ad.convert import sid_to_str, gt_to_str, timestr_or_never, get_attr, dn_to_
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='user'
+PLUGIN_NAME = 'user'
+PLUGIN_INFO = 'get user info'
 g_parser = None
 
 
@@ -114,7 +115,7 @@ def handler(args, conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='get user info')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
         g_parser.add_argument('users', nargs='*', help='users to search')
         g_parser.add_argument('-f', '--userfile', help='file of userPrincipalNames, CNs, and/or samAccountNames')

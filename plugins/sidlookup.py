@@ -1,10 +1,11 @@
 import logging
 
-from ad.convert import sid_to_ldap, sid_to_str
+from ad.convert import sid_to_ldap, sid_to_str, str_to_sid
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='sidlookup'
+PLUGIN_NAME = 'sidlookup'
+PLUGIN_INFO = 'lookup user SIDs'
 g_parser = None
 
 def handler(args, conn):
@@ -37,5 +38,5 @@ def get_arg_parser(subparser):
     if not g_parser:
         g_parser = subparser.add_parser(PLUGIN_NAME, help='resolve SID to username')
         g_parser.set_defaults(handler=handler)
-        g_parser.add_argument('sids', nargs='+', help='lookup user SIDs')
+        g_parser.add_argument('sids', nargs='+', help=PLUGIN_INFO)
     return g_parser

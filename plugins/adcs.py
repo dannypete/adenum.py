@@ -1,4 +1,5 @@
 from ad.convert import gt_to_str
+from net.adschema import ADSchemaObjectCategory
 
 PLUGIN_NAME = 'adcs'
 PLUGIN_INFO = '''
@@ -18,7 +19,7 @@ def get_arg_parser(subparser):
 
 def handler(args, conn):
     response = list(conn.searchg('cn=Configuration,'+conn.default_search_base,
-                                 '(objectCategory=pKIEnrollmentService)',
+                                 f'(objectCategory={ADSchemaObjectCategory.PKI_ENROLLMENT_SERVICE})',
                                  attributes=['*']))
     
     for result in response:
@@ -36,6 +37,5 @@ CA Certificate DN        {','.join(attributes.get('cACertificateDN', []))}
 Created At               {gt_to_str(attributes.get('whenCreated')[0])}
 Last Changed             {gt_to_str(attributes.get('whenChanged')[0])}
 Object GUID              {attributes.get('objectGUID', None)}
-
 """
     print(output)

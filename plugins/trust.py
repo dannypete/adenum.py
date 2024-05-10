@@ -1,8 +1,9 @@
 from ad.convert import sid_to_str
+from net.adschema import ADSchemaObjectClass
 
-PLUGIN_NAME='trust'
+PLUGIN_NAME = 'trust'
+PLUGIN_INFO = 'list all domain trusts'
 g_parser = None
-
 
 def get_parser():
     return g_parser
@@ -44,7 +45,7 @@ def handler(args, conn):
     ]
     response = conn.searchg(
         args.search_base,
-        '(objectClass=trustedDomain)',
+        f'(objectClass={ADSchemaObjectClass.TRUSTED_DOMAIN})',
         attributes=attributes)
     for r in response:
         print('Partner     ', r['attributes']['trustPartner'][0])
@@ -58,7 +59,7 @@ def handler(args, conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='list all domain trusts')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         #g_parser.add_argument('-r', '--recursive', action='store_true', help='recursively query trusts where possible')
         g_parser.set_defaults(handler=handler)
     return g_parser

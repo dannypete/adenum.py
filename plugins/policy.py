@@ -5,7 +5,8 @@ from ad.convert import interval_to_minutes, dn_to_cn
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='policy'
+PLUGIN_NAME = 'policy'
+PLUGIN_INFO = 'get policy info'
 g_parser = None
 
 def get_parser():
@@ -26,7 +27,7 @@ def handler(args, conn):
     if len(pols) == 0:
         logger.warn("No other password policies other than default could be fetched. Maybe because you don't have enough privileges in the domain, or maybe there's only one policy?")
     else:
-        logger.info(f"Fetched an additional {len(pols)} password policies.")
+        logger.info(f"Fetched {len(pols)} password policies.")
     for a in [p['attributes'] for p in pols]:
         print('=', a['name'][0].title(), '=')
         print('ComplexityEnabled              ', a['msDS-PasswordComplexityEnabled'][0])
@@ -48,6 +49,6 @@ def handler(args, conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='get policy info')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
     return g_parser

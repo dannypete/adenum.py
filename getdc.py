@@ -24,7 +24,7 @@ if args.debug:
 
 if not args.domain:
     if args.name_server:
-        name = get_fqdn_by_addr(args.name_server, args.name_server)
+        name = get_fqdn_by_addr(args.name_server)
         if name:
             args.domain = name.split('.', maxsplit=1)[-1]
 

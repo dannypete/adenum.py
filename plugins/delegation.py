@@ -13,9 +13,12 @@ https://posts.specterops.io/hunting-in-active-directory-unconstrained-delegation
 
 import logging
 
+from net.adschema import ADSchemaObjectClass
+
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='delegation'
+PLUGIN_NAME = 'delegation'
+PLUGIN_INFO = 'find accounts with delegation enabled'
 g_parser = None
 
 
@@ -31,7 +34,7 @@ def handler(args, conn):
     # aka: trust this computer for delegation to any service (kerberos only)
     results = list(conn.searchg(
         args.search_base,
-        '(&(|(objectClass=computer)(objectClass=user))(userAccountControl:1.2.840.113556.1.4.803:=524288))',
+        f'(&(|(objectClass={ADSchemaObjectClass.COMPUTER})(objectClass={ADSchemaObjectClass.USER}))(userAccountControl:1.2.840.113556.1.4.803:=524288))',
         attributes=['cn', 'userPrincipalName', 'samAccountName', 'userAccountControl']))
     if len(results):
         print('[Unconstrained Delegation]')
@@ -43,7 +46,7 @@ def handler(args, conn):
     # specified SPNs. (uac -> TRUSTED_TO_AUTH_FOR_DELEGATION)
     results = list(conn.searchg(
         args.search_base,
-        '(&(|(objectClass=computer)(objectClass=user))(userAccountControl:1.2.840.113556.1.4.803:=16777216))',
+        f'(&(|(objectClass={ADSchemaObjectClass.COMPUTER})(objectClass={ADSchemaObjectClass.USER}))(userAccountControl:1.2.840.113556.1.4.803:=16777216))',
         attributes=['cn', 'userPrincipalName', 'samAccountName', 'userAccountControl', 'msDS-AllowedToDelegateTo']))
     if len(results):
         print('[Constrained Delegation with Protocol Transition]')
@@ -57,7 +60,7 @@ def handler(args, conn):
     # logged in
     results = list(conn.searchg(
         args.search_base,
-        '(&(|(objectClass=computer)(objectClass=user))(msDS-AllowedToDelegateTo=*)(!(userAccountControl:1.2.840.113556.1.4.803:=16777216)))',
+        f'(&(|(objectClass={ADSchemaObjectClass.COMPUTER})(objectClass={ADSchemaObjectClass.USER}))(msDS-AllowedToDelegateTo=*)(!(userAccountControl:1.2.840.113556.1.4.803:=16777216)))',
         attributes=['cn', 'userPrincipalName', 'samAccountName', 'userAccountControl', 'msDS-AllowedToDelegateTo']))
     if len(results):
         print('[Constrained Delegation]')
@@ -70,6 +73,6 @@ def handler(args, conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='find accounts with delegation enabled')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
     return g_parser

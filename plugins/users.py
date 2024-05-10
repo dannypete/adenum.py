@@ -4,10 +4,12 @@ import ad.group
 import ad.user
 from ad.convert import sid_to_str, dn_to_cn
 from .user import print_user
+from net.adschema import ADSchemaObjectCategory
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='users'
+PLUGIN_NAME = 'users'
+PLUGIN_INFO = 'list privileged users'
 g_parser = None
 
 def handler(args, conn):
@@ -46,7 +48,7 @@ def handler(args, conn):
         print('= AdminSDHolder =')
         # these accounts have protected ACLs that are periodically overwritten by the AdminSDHolder ACLs
         # ref: https://adsecurity.org/?p=1906
-        for u in conn.searchg(conn.default_search_base, '(&(objectCategory=user)(adminCount=1))', attributes=['userPrincipalName', 'samAccountName']):
+        for u in conn.searchg(conn.default_search_base, f'(&(objectCategory={ADSchemaObjectCategory.USER})(adminCount=1))', attributes=['userPrincipalName', 'samAccountName']):
             if args.dn:
                 print(u['dn'])
             else:
@@ -86,7 +88,7 @@ def get_arg_parser(subparser):
     if not g_parser:
         g_parser = subparser.add_parser(PLUGIN_NAME, help='list all users')
         g_parser.set_defaults(handler=handler)
-        g_parser.add_argument('-p', '--privileged', action='store_true', help='list privileged users')
+        g_parser.add_argument('-p', '--privileged', action='store_true', help=PLUGIN_INFO)
         g_parser.add_argument('--basic', action='store_true', help='get basic user info')
         g_parser.add_argument('-a', '--active', action='store_true', help='get active users only')
     return g_parser

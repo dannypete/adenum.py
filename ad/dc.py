@@ -3,8 +3,8 @@ import logging
 
 from config import TIMEOUT
 from ad.adsmb import get_smb_info
-from net.name import get_addr_by_host, get_fqdn_by_addr, get_resolver
-
+from net.name import get_addr_by_host, get_fqdn_by_addr, get_host_by_name, get_resolvers
+from net.adschema import ADSchemaObjectClass, ADSchemaObjectCategory
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ def get_info(args, conn=None):
         conn = ldap3.Connection(server, auto_bind=True, version=args.version, receive_timeout=args.timeout)
     conn.search(
         '',
-        '(objectClass=*)',
+        f'(objectClass={ADSchemaObjectClass.WILDCARD})',
         search_scope=ldap3.BASE,
         dereference_aliases=ldap3.DEREF_NEVER,
         attributes=[
@@ -42,41 +42,47 @@ def get_info(args, conn=None):
     return r
 
 
-def get_domain_controllers_by_ldap(conn, search_base, name_server=None, timeout=TIMEOUT):
+def get_domain_controllers_by_ldap(conn, search_base, name_server=None, ad_server=None, timeout=TIMEOUT):
     # or primaryGroupID = 516 (GROUP_RID_CONTROLLERS)
     search_base = 'OU=Domain Controllers,'+search_base
     response = conn.searchg(
         search_base,
-        '(objectCategory=computer)',
+        f'(&(objectCategory={ADSchemaObjectCategory.COMPUTER})',
         search_scope=ldap3.SUBTREE,
         attributes=['dNSHostName', 'objectSid'])
     servers = []
     for s in response:
-        hostname = s['attributes']['dNSHostName'][0]
-        addr = get_addr_by_host(hostname, name_server, timeout) or \
-               get_addr_by_host(hostname, conn.server.host, timeout)
+        logger.debug(s)
+        hostname = s['attributes']['dNSHostName']
+        if not hostname:
+            continue
+        addr = get_addr_by_host(hostname, name_server, ad_server, timeout)
         if addr:
             servers.append({'address':addr, 'hostname':hostname, 'sid':s['attributes']['objectSid'][0]})
     return servers
 
-def get_domain_controllers_by_dns(domain, name_server=None, timeout=TIMEOUT):
+def get_domain_controllers_by_dns(domain, name_server=None, ad_server=None, timeout=TIMEOUT):
     ''' return the domain controller addresses for a given domain '''
-    resolver = get_resolver(name_server, timeout)
-    queries = [
-        ('_ldap._tcp.dc._msdcs.'+domain, 'SRV'), # joining domain
-        ('_ldap._tcp.'+domain, 'SRV'),
-        (domain, 'A'),
-        (domain, 'AAAA'),
-    ]
+    resolvers = get_resolvers(name_server, ad_server, timeout)
+
     answer = None
-    for q in queries:
-        try:
-            logger.debug('Resolving {} via {}'.format(q[0], name_server or 'default'))
-            answer = resolver.query(q[0], q[1])
-            logger.debug('Answer '+str(answer[0]).split()[-1])
-            break
-        except Exception as e:
-            logger.debug('Failed to resolve {} via {}'.format(q[0], name_server or 'default'))
+    for resolver in resolvers:
+        queries = [
+            ('_ldap._tcp.dc._msdcs.'+domain, 'SRV'), # joining domain
+            ('_ldap._tcp.'+domain, 'SRV'),
+            (domain, 'A'),
+            (domain, 'AAAA'),
+        ]
+        
+        for q in queries:
+            try:
+                logger.debug('Resolving {} via {}'.format(q[0], name_server or 'default'))
+                answer = resolver.query(q[0], q[1])
+                logger.debug('Answer '+str(answer[0]).split()[-1])
+                break
+            except Exception as e:
+                logger.debug('Failed to resolve {} via {}'.format(q[0], name_server or 'default'))
+
     if not answer:
         # last, try using the default name lookup for your host (may include hosts file)
         addr = get_host_by_name(domain)
@@ -84,12 +90,15 @@ def get_domain_controllers_by_dns(domain, name_server=None, timeout=TIMEOUT):
             answer = [addr]
         else:
             answer = []
+
     servers = []
     for a in answer:
         hostname = str(a).split()[-1]
-        addr = get_addr_by_host(hostname, name_server, timeout)
+        addr = get_addr_by_host(hostname, name_server, ad_server, timeout)
         if addr:
             servers.append({'address':addr, 'hostname':hostname})
+        else:
+            servers.append({'address': None, 'hostname': hostname})
     return servers
 
 def addr_to_fqdn(addr, name_servers=[], conn=None, args=None, port=445, timeout=TIMEOUT):
@@ -98,7 +107,7 @@ def addr_to_fqdn(addr, name_servers=[], conn=None, args=None, port=445, timeout=
     this method will get the correct hostname. aborts for 127. ips if SMB fails '''
     if args:
         logger.debug('Getting fqdn for {} by LDAP'.format(addr))
-        info = get_info(args)
+        info = get_info(args, conn)
         try:
             fqdn = info['dnsHostName']
             logger.debug('Got fqdn from LDAP: '+fqdn)

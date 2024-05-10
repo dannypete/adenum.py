@@ -12,7 +12,8 @@ from ad.convert import get_attr, ft_to_str, gt_to_str, dn_to_cn
 logger = logging.getLogger(__name__)
 
 
-PLUGIN_NAME='computers'
+PLUGIN_NAME = 'computers'
+PLUGIN_INFO = 'list computers'
 g_parser = None
 
 def get_parser():
@@ -29,7 +30,7 @@ def computer_info(computer, args):
     info = ''
     if args.resolve or args.smbinfo or args.active:
         for name_server in set([args.name_server, args.server, None]):
-            addr = net.name.get_addr_by_host(hostname, name_server, args.timeout)
+            addr = net.name.get_addr_by_host(hostname, name_server, args.server, args.timeout)
             if addr:
                 break
         if addr:
@@ -75,7 +76,7 @@ def handler(args, conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='list computers')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
         g_parser.set_defaults(computers=[])
         g_parser.add_argument('-s', '--smbinfo', action='store_true', help='run smbinfo on each host')

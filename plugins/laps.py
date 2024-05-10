@@ -13,12 +13,8 @@ ref: https://adsecurity.org/?p=3164
 logger = logging.getLogger(__name__)
 
 
-PLUGIN_NAME='laps'
-PLUGIN_INFO='''
-Enumerate hosts configured with LAPS. LAPS stores local admin passwords in plaintext in the ms-Mcs-AdmPwd
-attribute. This is typically readable only by privileged accounts. The mcs-AdmPwdExpirationTime can be
-read by authenticated users and indicates whether a host uses LAPS or not.
-'''
+PLUGIN_NAME = 'laps'
+PLUGIN_INFO = 'query LAPS configuration for hosts'
 g_parser = None
 
 def get_parser():
@@ -51,7 +47,7 @@ def handler(args, conn):
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='query LAPS configuration for hosts')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
         #g_parser.add_argument('-r', '--resolve', action='store_true', help='resolve hostnames')
         #g_parser.add_argument('--alive', action='store_true', help='only show alive hosts')

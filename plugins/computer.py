@@ -1,7 +1,4 @@
-import os
-import sys
 import logging
-import concurrent.futures
 
 import ad.computer
 import net.name
@@ -11,7 +8,8 @@ from .computers import computer_info
 logger = logging.getLogger(__name__)
 
 
-PLUGIN_NAME='computer'
+PLUGIN_NAME= 'computer'
+PLUGIN_INFO = 'list computer' 
 g_parser = None
 
 def get_parser():
@@ -20,15 +18,20 @@ def get_parser():
 def handler(args, conn):
     for host in args.hosts:
         if net.util.is_addr(host):
-            host = net.name.get_fqdn_by_addr(host, name_server=args.name_server, timeout=args.timeout)
+            host = net.name.get_fqdn_by_addr(host, args.name_server, args.server, timeout=args.timeout)
+
+
+        
         if host:
             computer = ad.computer.get(conn, host, args.attributes)
             computer_info(computer, args)
+        else:
+            logger.error(f"Unable to get FQDN for {host}. Skipping it...")
 
 def get_arg_parser(subparser):
     global g_parser
     if not g_parser:
-        g_parser = subparser.add_parser(PLUGIN_NAME, help='list computer')
+        g_parser = subparser.add_parser(PLUGIN_NAME, help=PLUGIN_INFO)
         g_parser.set_defaults(handler=handler)
         g_parser.add_argument('-s', '--smbinfo', action='store_true', help='run smbinfo on each host')
         g_parser.add_argument('-r', '--resolve', action='store_true', help='resolve hostnames')

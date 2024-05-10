@@ -1,6 +1,7 @@
 import ldap3
 
-PLUGIN_NAME='modify'
+PLUGIN_NAME = 'modify'
+PLUGIN_INFO = 'value(s) to add/modify'
 g_parser = None
 
 def get_parser():
@@ -27,5 +28,5 @@ def get_arg_parser(subparser):
         g_parser.add_argument('action', choices=['add', 'del', 'inc', 'replace'], help='action to perform')
         g_parser.add_argument('distinguished_name', metavar='dn', help='distinguishedName')
         g_parser.add_argument('attribute', help='attribute to modify')
-        g_parser.add_argument('values', nargs='*', default=[], help='value(s) to add/modify')
+        g_parser.add_argument('values', nargs='*', default=[], help=PLUGIN_INFO)
     return g_parser

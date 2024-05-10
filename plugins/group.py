@@ -5,7 +5,8 @@ from ad.convert import dn_to_cn
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME='group'
+PLUGIN_NAME = 'group'
+PLUGIN_INFO = 'retrieve group members'
 g_parser = None
 
 def get_parser():
@@ -35,5 +36,5 @@ def get_arg_parser(subparser):
         g_parser = subparser.add_parser(PLUGIN_NAME, help='get group info')
         g_parser.set_defaults(handler=handler)
         g_parser.add_argument('group', help='group to search', nargs='*')
-        g_parser.add_argument('-m', '--members', help='retrieve group members')
+        g_parser.add_argument('-m', '--members', help=PLUGIN_INFO)
     return g_parser

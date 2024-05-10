@@ -8,7 +8,9 @@ import getpass
 import sqlite3
 import umsgpack
 import threading
-from ldap3.core.results import RESULT_SIZE_LIMIT_EXCEEDED, RESULT_SUCCESS
+from ldap3.core.results import RESULT_SIZE_LIMIT_EXCEEDED, RESULT_SUCCESS, RESULT_RESERVED
+
+from net.adschema import ADSchemaObjectClass
 
 from config import TIMEOUT, MAX_PAGE_SIZE
 
@@ -76,7 +78,10 @@ class CachingConnection(ldap3.Connection):
         del kwargs['server_fqdn']
         self.default_search_base = kwargs['default_search_base']
         del kwargs['default_search_base']
-        ldap3.Connection.__init__(self, *args, **kwargs)
+
+        logger.debug(f"Creating LDAP3 connection with:\t\tkwargs:{kwargs}\t\targs:{args}")
+
+        inner = ldap3.Connection.__init__(self, *args, **kwargs)
 
     def get_db_conn(self):
         # return thread specific db connection
@@ -146,6 +151,17 @@ class CachingConnection(ldap3.Connection):
             # add results to cache
             self.cache_append(key, response, query, pageno)
             logger.debug('RESULT: page={} results={} status={}'.format(pageno, len(response), result['description']))
+            logger.debug(f"RESULT: {result}")
+
+            if result['result'] == RESULT_RESERVED:
+                logger.error("Received LDAP response code 9, which means RESULT_RESERVED and the search failed")
+                if result['message'].startswith("Referral"):
+                    logger.warn(f"**The server did send back referral(s) in its message data: {','.join(result['message'].splitlines()[1:])}")
+                    logger.warn(f"**It may be desirable to re-run, setting the --server to one of the referral addresses")
+                    raise RuntimeError("The server returned no results from the query")
+
+                if result['referrals']:
+                    logger.debug(f"The server did send back referral(s) in its referrals data: {result['referrals']}")
 
             if result['result'] != RESULT_SUCCESS:
                 logger.error('Query error: {}'.format(result['result']))
@@ -170,7 +186,7 @@ class CachingConnection(ldap3.Connection):
         # add hostname to prevent cached result from another host
         response = self.searchg(
             '',
-            '(objectClass=*)',
+            f'(objectClass={ADSchemaObjectClass.WILDCARD})',
             search_scope=ldap3.BASE,
             dereference_aliases=ldap3.DEREF_NEVER,
             attributes=['dnsHostName', 'supportedLDAPVersion', 'rootDomainNamingContext',
@@ -216,7 +232,9 @@ def get(args, addr=None):
         version=args.version,
         read_only=True,
         auto_range=True,
+        auto_referrals=True,
         auto_bind=False,
+        # raise_exceptions=True,
         receive_timeout=args.timeout,
         timeout=args.timeout,
         session=args.session,
@@ -224,6 +242,7 @@ def get(args, addr=None):
         default_search_base=args.search_base,
         #sasl_mechanism=ldap3.KERBEROS, sasl_credentials=(args.server_fqdn,) # for kerberos
     )
+    logger.debug(conn)
     conn.open()
     if args.info:
         print(server.info)
