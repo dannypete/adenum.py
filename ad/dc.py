@@ -47,7 +47,7 @@ def get_domain_controllers_by_ldap(conn, search_base, name_server=None, ad_serve
     search_base = 'OU=Domain Controllers,'+search_base
     response = conn.searchg(
         search_base,
-        f'(&(objectCategory={ADSchemaObjectCategory.COMPUTER})',
+        f'(objectCategory={ADSchemaObjectCategory.COMPUTER})',
         search_scope=ldap3.SUBTREE,
         attributes=['dNSHostName', 'objectSid'])
     servers = []
