@@ -15,9 +15,8 @@ import sys
 import socket
 import getpass
 import argparse
-import impacket
 from multiprocessing.dummy import Pool as ThreadPool
-from impacket.smbconnection import SMBConnection
+from impacket.smbconnection import SMBConnection, SessionError
 from impacket.smb import STATUS_LOGON_FAILURE, STATUS_SUCCESS
 
 # SMB error codes
@@ -30,7 +29,7 @@ class DomainLoginError(Exception):
 def login(host, args):
     try:
         smbconn = SMBConnection(host, host, timeout=args.timeout) # throws socket.error
-    except Exception as e:
+    except SessionError as e:
         sys.stdout.write('{} {}\\{} {}\n'.format(host, args.domain, args.username+':'+args.password, 'ConnectionError'))
         return
 
@@ -42,7 +41,7 @@ def login(host, args):
             smbconn.login(args.username, '', lmhash=args.password, domain=args.domain)
         else:
             smbconn.login(args.username, args.password, domain=args.domain)
-    except impacket.smbconnection.SessionError as e:
+    except SessionError as e:
         error_code = e.getErrorCode()
 
     if error_code != STATUS_SUCCESS:
@@ -59,19 +58,23 @@ def login(host, args):
         # for s in smbconn.listShares():
         #     print(s['shi1_netname'][:-1])
         smbconn.connectTree(r'ADMIN$')
-        status = 'Success:ADMIN'
-    except Exception as e:
+    except SessionError as e:
         error_code = e.getErrorCode()
 
     if error_code != STATUS_SUCCESS:
         status = 'ConnectTreeError '+hex(error_code)
-        if smbconn.isGuestSession():
+        if smbconn.isGuestSession() > 0:
             status = 'Guest'
         elif error_code == STATUS_ACCESS_DENIED:
-            status = 'Success'
+            if args.username == '':
+                status = 'Guest (probably; this is a workaround due to a bug in impacket)'
+            else:
+                status = 'Success'
         elif error_code == STATUS_BAD_NETWORK_NAME:
             # ADMIN$ doesn't exist, probably Samba
             status = 'ShareNameError'
+    else:
+        status = 'Success:ADMIN'
 
     sys.stdout.write('{} {}\\{} {}\n'.format(host, args.domain, args.username+':'+args.password, status))
     try:
