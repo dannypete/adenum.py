@@ -46,7 +46,7 @@ def get_users(conn, group):
     # get all users in group using "memberOf" attribute. primary group is not included in the "memberOf" attribute
     response = conn.searchg(
         conn.default_search_base,
-        f'(&(|(objectCategory={ADSchemaObjectCategory.USER})(objectCategory={ADSchemaObjectCategory.GROUP}))(memberOf={group['dn']}))',
+        f'(&(|(objectCategory={ADSchemaObjectCategory.USER})(objectCategory={ADSchemaObjectCategory.GROUP}))(memberOf={group["dn"]}))',
         attributes=['distinguishedName', 'userPrincipalName'])
     users += [u for u in response if u.get('dn', False)]
     return users

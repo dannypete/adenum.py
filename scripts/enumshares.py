@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+# builtin modules
 import sys
 import logging
 import binascii
@@ -6,9 +8,11 @@ import argparse
 import concurrent.futures
 import ipaddress
 
-import smb
-from smb.SMBConnection import SMBConnection
-from smb.smb_structs import OperationFailure
+# pysmb
+import smb.base
+import smb.ntlm
+import smb.smb_structs
+import smb.SMBConnection
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +23,7 @@ class MyMD4Class():
         return MyMD4Class()
     def update(self, p):
         self.nthash = binascii.unhexlify(p.decode('utf-16-le'))
+        logger.debug("NTHASH: {}".format(self.nthash))
     def digest(self):
         return self.nthash
 
@@ -51,7 +56,7 @@ def crawl_share(conn, share, sharepath, max_depth=None):
     start_depth = len(sharepath.split('\\'))
     while len(dirs) > 0:
         path = dirs.pop(0)
-        logger.debug("Enumerating path \\\\{}\\{}\\{}".format(conn.remote_name, share, path))
+        logger.debug("Enumerating path \\\\{}\\{}{}".format(conn.remote_name, share, path))
         if max_depth is not None:
             if len(path.split("\\")) - start_depth >= max_depth:
                 logger.debug("Depth of {} reached for path '{}'".format(max_depth, path))
@@ -68,7 +73,7 @@ def crawl_share(conn, share, sharepath, max_depth=None):
                         dirs.append(newdir)
                 else:
                     sys.stdout.write('\\\\{}\\{}{}\\{}\n'.format(conn.remote_name, share, path, f.filename))
-        except OperationFailure as e:
+        except smb.smb_structs.OperationFailure as e:
             logger.debug('Error listing {}\\{}: {} {} (adenum writer\' note: probably a normal permissions error)'.format(share, path, type(e).__name__, e.message))
         except Exception as e:
             logger.error('Error listing {}\\{}. This is an unexpected error; you might want to rerun the script'.format(share, path, str(e).split('\n')[0]))
@@ -81,7 +86,7 @@ def enum_thread(args, host, sharename=None, sharepath=None, max_depth=None):
     if sharename is not None:
         shares = [sharename]
     else:
-        conn = SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
+        conn = smb.SMBConnection.SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
         conn.connect(host, port=args.smb_port)
         shares = [s.name for s in conn.listShares() if s.type == smb.base.SharedDevice.DISK_TREE]   
@@ -94,7 +99,7 @@ def enum_thread(args, host, sharename=None, sharepath=None, max_depth=None):
             logger.debug('Skipping excluded dir: '+s)
             continue
         logger.debug('Crawling share ' + s)
-        conn = SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
+        conn = smb.SMBConnection.SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
         conn.connect(host, port=args.smb_port)
         crawl_share(conn, s, sharepath if sharepath is not None else '', max_depth)
@@ -138,8 +143,12 @@ def enum_shares(args):
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as e:
         futures = []
         for host in hosts:
-            host, sharename, sharepath = parse_host_with_share(host)
-            futures.append(e.submit(enum_thread, args, host, sharename, sharepath, args.max_depth))
+            hostaddr, sharename, sharepath = parse_host_with_share(host)
+            logger.debug("Host '{}' parsed into: address:{}, share:{}, sharepath:{}".format(host, hostaddr, sharename, sharepath))
+            if hostaddr is None:
+                logger.debug("Skipping empty host: {}".format(host))
+                continue
+            futures.append(e.submit(enum_thread, args, hostaddr, sharename, sharepath, args.max_depth))
         
         concurrent.futures.wait(futures)
 
