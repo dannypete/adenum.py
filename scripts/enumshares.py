@@ -51,7 +51,7 @@ def parse_host_with_share(host):
     return host_addr, sharename, sharepath
 
 
-def crawl_share(conn, share, sharepath, max_depth=None):
+def crawl_share(conn, share, sharepath, timeout, max_depth=None):
     dirs = [sharepath]
     start_depth = len(sharepath.split('\\'))
     while len(dirs) > 0:
@@ -65,7 +65,7 @@ def crawl_share(conn, share, sharepath, max_depth=None):
                 logger.debug("Depth of {} not reached yet for path '{}'".format(max_depth, path))
 
         try:
-            for f in conn.listPath(share, path):
+            for f in conn.listPath(share, path, timeout=timeout):
                 if f.isDirectory:
                     if f.filename not in args.exclude:
                         newdir = path + '\\' + f.filename
@@ -101,8 +101,8 @@ def enum_thread(args, host, sharename=None, sharepath=None, max_depth=None):
         logger.debug('Crawling share ' + s)
         conn = smb.SMBConnection.SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
-        conn.connect(host, port=args.smb_port)
-        crawl_share(conn, s, sharepath if sharepath is not None else '', max_depth)
+        conn.connect(host, port=args.smb_port, timeout=args.timeout)
+        crawl_share(conn, s, sharepath if sharepath is not None else '', max_depth, timeout=args.timeout)
         conn.close()
 
 
@@ -168,6 +168,7 @@ if __name__ == '__main__':
     parser.add_argument('-x', '--exclude', action='append', help='full share path to exclude from crawling', default=[])
     parser.add_argument('--max-depth', type=int, help='max depth of shares to crawl', default=None)
     parser.add_argument('--host-cidr', action='store_true', help='hosts are passed using CIDR (cannot be used in conjunction with a provided host share path)', default=False)
+    parser.add_argument('-t', '--timeout', help='connection timeout', type=int, default=30)
     args = parser.parse_args()
 
     args.exclude.append('.')
