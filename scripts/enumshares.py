@@ -74,7 +74,10 @@ def crawl_share(conn, share, sharepath, timeout, max_depth=None):
                 else:
                     sys.stdout.write('\\\\{}\\{}{}\\{}\n'.format(conn.remote_name, share, path, f.filename))
         except smb.smb_structs.OperationFailure as e:
-            logger.debug('Error listing {}\\{}: {} {} (adenum writer\' note: probably a normal permissions error)'.format(share, path, type(e).__name__, e.message))
+            logger.debug('Error listing {}\\{}: {} {} (adenum writer\'s note: probably a normal permissions error)'.format(share, path, type(e).__name__, e.message))
+        except smb.base.SMBTimeout:
+            logger.error("Connection to {} timed out while crawling {}. Aborting".format(conn.remote_name, path))
+            raise
         except Exception as e:
             logger.error('Error listing {}\\{}. This is an unexpected error; you might want to rerun the script'.format(share, path, str(e).split('\n')[0]))
             raise
@@ -88,9 +91,14 @@ def enum_thread(args, host, sharename=None, sharepath=None, max_depth=None):
     else:
         conn = smb.SMBConnection.SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
-        conn.connect(host, port=args.smb_port)
-        shares = [s.name for s in conn.listShares() if s.type == smb.base.SharedDevice.DISK_TREE]   
-        conn.close()
+        try:
+            conn.connect(host, port=args.smb_port, timeout=args.timeout)
+            shares = [s.name for s in conn.listShares(timeout=args.timeout) if s.type == smb.base.SharedDevice.DISK_TREE]   
+            conn.close()
+        except smb.base.SMBTimeout:
+            logger.error("Connection to {} timed out while looking for shares to enumerate. Aborting".format(host))
+            conn.close()
+            return -1
 
     logger.debug("Shares to enumerate for {}:  {}".format(host, shares))
 
@@ -101,7 +109,13 @@ def enum_thread(args, host, sharename=None, sharepath=None, max_depth=None):
         logger.debug('Crawling share ' + s)
         conn = smb.SMBConnection.SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
-        conn.connect(host, port=args.smb_port, timeout=args.timeout)
+        try:
+            conn.connect(host, port=args.smb_port, timeout=args.timeout)
+        except smb.base.SMBTimeout:
+            logger.error("Connection to {} timed out while crawling its shares. Aborting".format(host))
+            conn.close()
+            return -1
+        
         crawl_share(conn, s, sharepath if sharepath is not None else '', max_depth, timeout=args.timeout)
         conn.close()
 

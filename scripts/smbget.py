@@ -32,8 +32,8 @@ def get_thread(args, work, host):
     logger.debug('Connecting to {} as {}\\{}'.format(host, args.domain or '', args.username))
     conn = SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
-    conn.connect(host, port=args.smb_port)
-    shares = [s.name.lower() for s in conn.listShares() if s.type == smb.base.SharedDevice.DISK_TREE]
+    conn.connect(host, port=args.smb_port, timeout=args.timeout)
+    shares = [s.name.lower() for s in conn.listShares(timeout=args.timeout) if s.type == smb.base.SharedDevice.DISK_TREE]
     for s in work[host]:
         if s.lower() in shares:
             for f in work[host][s]:
@@ -41,13 +41,13 @@ def get_thread(args, work, host):
                 if args.stdout:
                     # not thread safe but likely just want to grep output anyway
                     with os.fdopen(sys.stdout.fileno(), 'wb') as fp:
-                        conn.retrieveFile(s, f, fp)
+                        conn.retrieveFile(s, f, fp, timeout=args.timeout)
                         fp.write(b'\n')
                 else:
                     local_path = (host+'\\'+f).replace('\\', '/')
                     os.makedirs(os.path.dirname(local_path), mode=0o770, exist_ok=True)
                     with open(local_path, 'wb') as fp:
-                        conn.retrieveFile(s, f, fp)
+                        conn.retrieveFile(s, f, fp, timeout=args.timeout)
     conn.close()
 
 def get_files(args):
@@ -81,6 +81,7 @@ if __name__ == '__main__':
     parser.add_argument('--smb-port', dest='smb_port', type=int, default=445, help='SMB port. default 445')
     parser.add_argument('--debug', action='store_true', help='enable debug output')
     parser.add_argument('-O', '--stdout', action='store_true', help='output file contents to stdout')
+    parser.add_argument('-t', '--timeout', help='connection timeout', type=int, default=30)
     args = parser.parse_args()
 
     if args.debug:
