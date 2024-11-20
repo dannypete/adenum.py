@@ -34,6 +34,7 @@ def login(host, args):
         return
 
     error_code = STATUS_SUCCESS
+    error_string = ('', '')
     try:
         if args.nthash:
             smbconn.login(args.username, '', nthash=args.password, domain=args.domain)
@@ -43,6 +44,7 @@ def login(host, args):
             smbconn.login(args.username, args.password, domain=args.domain)
     except SessionError as e:
         error_code = e.getErrorCode()
+        error_string = e.getErrorString()
 
     if error_code != STATUS_SUCCESS:
         status = 'LoginError'
@@ -51,6 +53,11 @@ def login(host, args):
             if args.domain != '.' and smbconn.getServerDomain() != '':
                 sys.stdout.write('{} {}\\{} {}\n'.format(host, args.domain, args.username+':'+args.password, status))
                 raise DomainLoginError('Aborting: domain creds are invalid, preventing lockout')
+            
+        else:
+            status = 'Failure: {}'.format(error_string[0])
+            if args.verbose:
+                status += '   Explanation: {}'.format(error_string[1])
         sys.stdout.write('{} {}\\{} {}\n'.format(host, args.domain, args.username+':'+args.password, status))
         return
 
@@ -60,9 +67,10 @@ def login(host, args):
         smbconn.connectTree(r'ADMIN$')
     except SessionError as e:
         error_code = e.getErrorCode()
+        error_string = e.getErrorString()
 
     if error_code != STATUS_SUCCESS:
-        status = 'ConnectTreeError '+hex(error_code)
+        # status = 'ConnectTreeError '+hex(error_code)
         if smbconn.isGuestSession() > 0:
             status = 'Guest'
         elif error_code == STATUS_ACCESS_DENIED:
@@ -73,6 +81,10 @@ def login(host, args):
         elif error_code == STATUS_BAD_NETWORK_NAME:
             # ADMIN$ doesn't exist, probably Samba
             status = 'ShareNameError'
+        else:
+            status = 'Unknown: {}'.format(error_string[0])
+            if args.verbose:
+                status += '  Explanation: {}'.format(error_string[1])
     else:
         status = 'Success:ADMIN'
 
@@ -111,6 +123,7 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--threads', type=int, default=1, help='default 1')
     parser.add_argument('-t', '--timeout', type=int, default=3, help='socket timeout. default 3s')
     parser.add_argument('-f', '--file', help='hosts file, 1 per line')
+    parser.add_argument('-v', '--verbose', action='store_true', help='more output (currently only provides error explanations)')
     parser.add_argument('hosts', nargs='*', help='hostnames or addresses')
     args = parser.parse_args()
 
