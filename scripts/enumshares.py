@@ -54,53 +54,73 @@ def parse_host_with_share(host):
 def crawl_share(conn, share, sharepath, timeout, max_depth=None):
     dirs = [sharepath]
     start_depth = len(sharepath.split('\\'))
+    logger.debug("Starting `crawl_share()` with initial values: \
+                 dirs={}, share={}, sharepath={}, maxdepth={}, startdepth={}"
+                 .format(dirs, share, sharepath, max_depth, start_depth))
     while len(dirs) > 0:
         path = dirs.pop(0)
         logger.debug("Enumerating path \\\\{}\\{}{}".format(conn.remote_name, share, path))
         if max_depth is not None:
             if len(path.split("\\")) - start_depth >= max_depth:
-                logger.debug("Depth of {} reached for path '{}'".format(max_depth, path))
+                logger.info("Reached specified max_depth ({}) on host ({})'s path '{}'".format(max_depth, conn.remote_name, path))
                 continue
             else:
                 logger.debug("Depth of {} not reached yet for path '{}'".format(max_depth, path))
 
         try:
             for f in conn.listPath(share, path, timeout=timeout):
+                if f.filename in args.exclude:
+                    continue
+
                 if f.isDirectory:
-                    if f.filename not in args.exclude:
-                        newdir = path + '\\' + f.filename
-                        logger.debug("Adding '{}' to paths to enumerate".format(newdir))
-                        dirs.append(newdir)
+                    newdir = path + '\\' + f.filename
+                    logger.debug("Adding '{}' to paths to enumerate".format(newdir))
+                    dirs.append(newdir)
+                    sys.stdout.write('\\\\{}\\{}{}\\{}\\\n'.format(conn.remote_name, share, path, f.filename))
                 else:
                     sys.stdout.write('\\\\{}\\{}{}\\{}\n'.format(conn.remote_name, share, path, f.filename))
         except smb.smb_structs.OperationFailure as e:
-            logger.debug('Error listing {}\\{}: {} {} (adenum writer\'s note: probably a normal permissions error)'.format(share, path, type(e).__name__, e.message))
-        except smb.base.SMBTimeout:
+            logger.info('Error listing "\\\\{}\\{}{}\\" (this is probably a normal file/permissions error): \
+                        errorName="{}" errorMessage="{}"'.format(conn.remote_name, share, path, type(e).__name__, e.message))
+        except (smb.base.SMBTimeout, TimeoutError):
             logger.error("Connection to {} timed out while crawling {}. Aborting".format(conn.remote_name, path))
             raise
         except Exception as e:
-            logger.error('Error listing {}\\{}. This is an unexpected error; you might want to rerun the script'.format(share, path, str(e).split('\n')[0]))
+            logger.error('Unexpected error listing {}\\{}. \
+                         You might want to rerun the script with --debug and report to maintainer'
+                         .format(share, path, str(e).split('\n')[0]))
+            logger.debug(type(e))
             raise
 
 
 def enum_thread(args, host, sharename=None, sharepath=None, max_depth=None):
-    logger.debug('Connecting to {} as {}\\{}'.format(host, args.domain or '', args.username))
-
+    
     if sharename is not None:
+        logger.debug("Enumerating specified share {} on {}".format(sharename, host))
         shares = [sharename]
     else:
         conn = smb.SMBConnection.SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
         try:
-            conn.connect(host, port=args.smb_port, timeout=args.timeout)
+            logger.debug('Connecting to {} as {}\\{}'.format(host, args.domain or '', args.username))
+            conn_result = conn.connect(host, port=args.smb_port, timeout=args.timeout)
+            if conn_result == False:
+                logger.error("Failed to authenticate to host {}. Skipping it...".format(host))
+                conn.close()
+                return -1
+            logger.debug("Enumerating any available shares on {}".format(host))
             shares = [s.name for s in conn.listShares(timeout=args.timeout) if s.type == smb.base.SharedDevice.DISK_TREE]   
+            logger.debug("Found the following shares for enumerating on {}: {}".format(host, shares))
             conn.close()
-        except smb.base.SMBTimeout:
+        except (smb.base.SMBTimeout, TimeoutError):
             logger.error("Connection to {} timed out while looking for shares to enumerate. Aborting".format(host))
             conn.close()
             return -1
-
-    logger.debug("Shares to enumerate for {}:  {}".format(host, shares))
+        except Exception as e:
+            logger.error("Encountered unknown error connecting to {}: {}".format(host, e))
+            logger.debug(type(e))
+            conn.close()
+            return -1
 
     for s in shares:
         if s in args.exclude:
@@ -110,14 +130,30 @@ def enum_thread(args, host, sharename=None, sharepath=None, max_depth=None):
         conn = smb.SMBConnection.SMBConnection(args.username, args.password, 'adenum', host, use_ntlm_v2=True,
                          domain=args.domain, is_direct_tcp=(args.smb_port != 139))
         try:
-            conn.connect(host, port=args.smb_port, timeout=args.timeout)
-        except smb.base.SMBTimeout:
+            conn_result = conn.connect(host, port=args.smb_port, timeout=args.timeout)
+        except (smb.base.SMBTimeout, TimeoutError):
             logger.error("Connection to {} timed out while crawling its shares. Aborting".format(host))
             conn.close()
             return -1
+        except Exception as e:
+            logger.error("Encountered unknown error connecting to {}: {}".format(host, e))
+            logger.debug(type(e))
+            conn.close()
+            return -1
+
+        if conn_result == True:
+            logger.debug("Successfully connected to share '{}' of {}".format(s, host))
+            crawl_share(conn=conn, share=s, sharepath=sharepath if sharepath is not None else '', max_depth=max_depth, timeout=args.timeout)
+        else:
+            logger.debug("Failed to authenticate to host {}. \
+                         Did the user get locked out or password reset? \
+                         (This is an unusual place for this fail to occur in the code)"
+                         .format(s, host))
+            conn.close()
+            return -1
         
-        crawl_share(conn, s, sharepath if sharepath is not None else '', max_depth, timeout=args.timeout)
         conn.close()
+        return 0
 
 
 def enum_shares(args):
@@ -172,19 +208,24 @@ if __name__ == '__main__':
     parser.add_argument('-u', '--username', required=True, help='username')
     parser.add_argument('-p', '--password', required=True, help='password')
     parser.add_argument('-d', '--domain', default='.', help='AD domain')
-    parser.add_argument('-w', '--workers', default=1, type=int, help='worker threads')
+    parser.add_argument('-w', '--workers', default=5, type=int, help='worker threads')
     parser.add_argument('--nthash', action='store_true', help='password is the nthash')
     parser.add_argument('-f', '--filename', help='file of hosts')
-    parser.add_argument('hosts', nargs='*', help='hosts to enumerate. a share, and optionally path in that share, may be provided e.g. 10.20.30.40\\share$\\path')
+    parser.add_argument('hosts', nargs='*', help='hosts to enumerate. \
+                        a share, and optionally path in that share, may be provided e.g. 10.20.30.40\\share$\\path')
     parser.add_argument('--smb-port', dest='smb_port', type=int, default=445, help='SMB port. default 445')
     #parser.add_argument('--proxy', help='socks5 proxy: eg 127.0.0.1:8888')
-    parser.add_argument('--debug', action='store_true', help='enable debug output')
-    parser.add_argument('-x', '--exclude', action='append', help='full share path to exclude from crawling', default=[])
-    parser.add_argument('--max-depth', type=int, help='max depth of shares to crawl', default=None)
-    parser.add_argument('--host-cidr', action='store_true', help='hosts are passed using CIDR (cannot be used in conjunction with a provided host share path)', default=False)
-    parser.add_argument('-t', '--timeout', help='connection timeout', type=int, default=30)
+    parser.add_argument('--verbose', '-v', action='store_true', help='more output')
+    parser.add_argument('--debug', action='store_true', help='enable debug output (implies verbose)')
+    parser.add_argument('-x', '--exclude', action='append', help='path string/substring to exclude from crawling \
+                        (use multiple times e.g., "-x EXCLUDE_1 ... -x EXCLUDE_n" for multiple exclusions)', default=[])
+    parser.add_argument('--max-depth', type=int, help='max depth to crawl within share (default: no max)', default=None)
+    parser.add_argument('--host-cidr', action='store_true', help='hosts are passed using CIDR \
+                        (cannot be used in conjunction with a provided host share path)', default=False)
+    parser.add_argument('-t', '--timeout', help='connection timeout', type=int, default=10)
     args = parser.parse_args()
 
+    # prevent cyclical paths
     args.exclude.append('.')
     args.exclude.append('..')
     args.exclude = set(args.exclude)
@@ -193,17 +234,13 @@ if __name__ == '__main__':
     h.setFormatter(logging.Formatter('[%(levelname)s] %(filename)s:%(lineno)s %(message)s'))
     for n in [__name__]:
         l = logging.getLogger(n)
-        l.setLevel(logging.DEBUG if args.debug else logging.NOTSET)
+        if args.verbose:
+            l.setLevel(logging.INFO)
+        elif args.debug:
+            l.setLevel(logging.DEBUG)
+        else:
+            l.setLevel(logging.NOTSET)
         l.addHandler(h)
     logger.debug(args)
-    logger.info("Domain: {}".format(args.domain))
-    logger.info("User: {}".format(args.username))
-    logger.info("Host(s): {}".format(args.hosts))
-    logger.info("Hosts file: {}".format(args.filename))
-    logger.info("Port: {}".format(args.smb_port))
-    logger.info("Worker count: {}".format(args.workers))
-    logger.info("Exclusions: {}".format(args.exclude))
-    logger.info("Max Depth: {}".format(args.max_depth or 'N/A'))
-    logger.info("Hosts with CIDR: {}".format(args.host_cidr))
 
     enum_shares(args)
